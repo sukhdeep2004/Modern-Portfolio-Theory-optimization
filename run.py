@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 import pandas as pd
 import warnings
+from pypfopt import EfficientFrontier
 warnings.filterwarnings('ignore')
 tickers = ['AAPL', 'MSFT', 'GOOGL']
 def get_data(tickers):
@@ -23,13 +24,13 @@ def optimize_portfolio(df,exp_returns):
     returns = exp_returns 
     cov_matrix =df.values
     num_portfolios = 10000
-    results = np.zeros((3, num_portfolios))
-
+    results = np.zeros((4, num_portfolios))
+    weights_record=[]
     for i in range(num_portfolios):
         # Random weights
         weights = np.random.random(3)
         weights /= np.sum(weights)  # Normalize to sum to 1
-        
+        weights_record.append(weights)
         # Portfolio return
         portfolio_return = np.dot(weights, returns)
         
@@ -42,15 +43,55 @@ def optimize_portfolio(df,exp_returns):
         results[0, i] = portfolio_std
         results[1, i] = portfolio_return
         results[2, i] = sharpe
-    print(weights)
-df,exp_returns=get_data(tickers)
-optimize_portfolio(df,exp_returns)
+        results[3,i]=i
+    max_sharpe_idx = np.argmax(results[2])
+    min_vol_idx = np.argmin(results[0])
+    
+    # Get the actual weights for optimal portfolios
+    max_sharpe_weights = weights_record[max_sharpe_idx]
+    min_vol_weights = weights_record[min_vol_idx]
+    
+    return results, max_sharpe_weights, min_vol_weights
+def plot_efficient_frontier(results, max_sharpe_weights, min_vol_weights, exp_returns, cov_matrix):
+    """Visualize the efficient frontier and optimal portfolios"""
+    plt.figure(figsize=(12, 8))
+    
 
-# optimize_portfolio(df,exp_returns)
-# plt.figure(figsize=(10, 6))
-# plt.scatter(results[0,:], results[1,:], c=results[2,:], cmap='viridis')
-# plt.colorbar(label='Sharpe Ratio')
-# plt.xlabel('Risk (Standard Deviation)')
-# plt.ylabel('Expected Return')
-# plt.title('Efficient Frontier - Mean-Variance Optimization')
-# plt.show()
+    scatter = plt.scatter(results[0,:], results[1,:], 
+                         c=results[2,:], cmap='viridis', 
+                         alpha=0.5, s=10)
+    plt.colorbar(scatter, label='Sharpe Ratio')
+    
+
+    max_sharpe_return = np.dot(max_sharpe_weights, exp_returns)
+    max_sharpe_std = np.sqrt(np.dot(max_sharpe_weights.T, 
+                                    np.dot(cov_matrix, max_sharpe_weights)))
+    plt.scatter(max_sharpe_std, max_sharpe_return, 
+               marker='*', color='red', s=500, label='Max Sharpe Ratio')
+    
+
+    min_vol_return = np.dot(min_vol_weights, exp_returns)
+    min_vol_std = np.sqrt(np.dot(min_vol_weights.T, 
+                                 np.dot(cov_matrix, min_vol_weights)))
+    plt.scatter(min_vol_std, min_vol_return, 
+               marker='*', color='blue', s=500, label='Min Volatility')
+    
+    plt.xlabel('Volatility (Standard Deviation)', fontsize=12)
+    plt.ylabel('Expected Annual Return', fontsize=12)
+    plt.title('Efficient Frontier - Mean-Variance Optimization', fontsize=14, fontweight='bold')
+    plt.legend(fontsize=10)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+def optimize_portfolio_ef(df,exp_returns):
+    ef = EfficientFrontier(exp_returns, df)
+    weights = ef.max_sharpe()
+    cleaned_weights = ef.clean_weights()
+    print(cleaned_weights)
+    ef.portfolio_performance(verbose=True)
+
+df,exp_returns=get_data(tickers)
+results, max_sharpe_weights, min_vol_weights=optimize_portfolio(df,exp_returns)
+# plot_efficient_frontier(results, max_sharpe_weights, min_vol_weights, exp_returns, df.values)
+optimize_portfolio_ef(df,exp_returns)
+
