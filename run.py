@@ -13,10 +13,10 @@ def get_data(tickers):
         data = yf.download(ticker, start="2020-01-01", end="2025-01-01",auto_adjust=False)
         prices = data['Adj Close']
         expected_returns[tickers.index(ticker)] = prices.pct_change().dropna().mean()
-        monthly=prices.resample('MS').first()
+        monthly=prices.resample('MS').last()
         returns_cov = pd.concat([returns_cov,monthly.pct_change()],axis=1)
     annualized_expected_return = (1 + expected_returns) ** 252 - 1
-    returns_cov = returns_cov.dropna().cov()
+    returns_cov = returns_cov.dropna().cov()*12
     return(returns_cov, annualized_expected_return)
     # print(data.head())
     # print(prices.head())
@@ -28,8 +28,8 @@ def optimize_portfolio(df,exp_returns):
     weights_record=[]
     for i in range(num_portfolios):
         # Random weights
-        weights = np.random.random(3)
-        weights /= np.sum(weights)  # Normalize to sum to 1
+        weights = np.random.random(len(exp_returns))
+        weights /= np.sum(weights)  
         weights_record.append(weights)
         # Portfolio return
         portfolio_return = np.dot(weights, returns)
